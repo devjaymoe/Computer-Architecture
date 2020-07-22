@@ -4,6 +4,13 @@ import sys
 
 SP = 7
 
+LDI = 0b10000010
+PRN = 0b01000111
+HLT = 0b00000001
+MUL = 0b10100010
+PUSH = 0b01000101
+POP = 0b01000110
+
 class CPU:
     """Main CPU class."""
 
@@ -12,7 +19,14 @@ class CPU:
         self.reg = [0] * 8
         self.pc = 0
         self.ram = [0] * 256
+        self.running = True
         self.branch_table = {}
+        self.branch_table[LDI] = self.op_LDI
+        self.branch_table[PRN] = self.op_PRN
+        self.branch_table[HLT] = self.op_HLT
+        self.branch_table[MUL] = self.op_MUL
+        self.branch_table[PUSH] = self.op_PUSH
+        self.branch_table[POP] = self.op_POP
 
         self.reg[SP] = 0xf4
 
@@ -80,81 +94,68 @@ class CPU:
     def ram_write(self, MDR, MAR):
         self.ram[MAR] = MDR
 
+    def op_LDI(self, running):
+        reg_num = self.ram[self.pc + 1]
+        value = self.ram[self.pc + 2]
+
+        self.reg[reg_num] = value
+
+        self.pc += 3  
+
+    def op_PRN(self, running):
+        reg_num = self.ram[self.pc + 1]
+        print(self.reg[reg_num])
+
+        self.pc += 2
+
+    def op_HLT(self, running):
+        # halt the cpu and exit em
+        self.running = False
+
+    def op_MUL(self, running):
+        reg_a = self.ram[self.pc + 1]
+        reg_b = self.ram[self.pc + 2]
+
+        self.alu('MUL', reg_a, reg_b)
+
+        self.pc += 3
+
+    def op_PUSH(self, running):
+        self.reg[SP] -= 1
+        self.reg[SP] &= 0xff
+
+        reg_num = self.ram[self.pc + 1]
+        value = self.reg[reg_num]
+
+        address_to_push = self.reg[SP]
+        # print(address_to_push)
+        self.ram[address_to_push] = value
+
+        self.pc += 2
+
+    def op_POP(self, running):
+        address_to_pop = self.reg[SP]
+        value = self.ram[address_to_pop]
+
+        reg_num = self.ram[self.pc + 1]
+        self.reg[reg_num] = value
+        
+        self.reg[SP] += 1
+        
+        self.pc += 2
+    
     def run(self):
         """Run the CPU."""
-
-        running = True
-
-        ops = {
-            0b10000010: 'LDI',
-            0b01000111: 'PRN',
-            0b00000001: 'HLT',
-            0b10100010: 'MUL',
-            0b01000101: 'PUSH',
-            0b01000110: 'POP'
-        }
         # print("Ram: ", self.ram)
         # print("PC: ", self.pc)
         # print("Reg: ", self.reg)
 
-        while running:
+        while self.running:
             # self.trace()
 
             instructions = self.ram_read(self.pc)
 
-            if ops[instructions] == 'LDI': # LDI
-                # set value of a register
-                reg_num = self.ram[self.pc + 1]
-                value = self.ram[self.pc + 2]
-
-                self.reg[reg_num] = value
-
-                self.pc += 3   
-
-            elif ops[instructions] == 'PRN': # PRN
-                # print register
-                reg_num = self.ram[self.pc + 1]
-                print(self.reg[reg_num])
-
-                self.pc += 2
-
-            elif ops[instructions] == 'HLT': # HLT
-                # halt the cpu and exit em
-                running = False
-
-            elif ops[instructions] == 'MUL':
-                reg_a = self.ram[self.pc + 1]
-                reg_b = self.ram[self.pc + 2]
-
-                self.alu('MUL', reg_a, reg_b)
-
-                self.pc += 3
-
-            elif ops[instructions] == 'PUSH':
-                self.reg[SP] -= 1
-                self.reg[SP] &= 0xff
-
-                reg_num = self.ram[self.pc + 1]
-                value = self.reg[reg_num]
-
-                address_to_push = self.reg[SP]
-                # print(address_to_push)
-                self.ram[address_to_push] = value
-
-                self.pc += 2
-
-            elif ops[instructions] == 'POP':
-                address_to_pop = self.reg[SP]
-                value = self.ram[address_to_pop]
-
-                reg_num = self.ram[self.pc + 1]
-                self.reg[reg_num] = value
-                
-                self.reg[SP] += 1
-                
-                self.pc += 2
-
+            if instructions in self.branch_table:
+                self.branch_table[instructions](self.running)
             else:
                 print(f"Unknown instruction {instructions}")
-            
-            # print(self.reg)
