@@ -7,9 +7,12 @@ SP = 7
 LDI = 0b10000010
 PRN = 0b01000111
 HLT = 0b00000001
+ADD = 0b10100000
 MUL = 0b10100010
 PUSH = 0b01000101
 POP = 0b01000110
+CALL = 0b01010000
+RET = 0b00010001
 
 class CPU:
     """Main CPU class."""
@@ -25,8 +28,11 @@ class CPU:
         self.branch_table[PRN] = self.op_PRN
         self.branch_table[HLT] = self.op_HLT
         self.branch_table[MUL] = self.op_MUL
+        self.branch_table[ADD] = self.op_ADD
         self.branch_table[PUSH] = self.op_PUSH
         self.branch_table[POP] = self.op_POP
+        self.branch_table[CALL] = self.op_CALL
+        self.branch_table[RET] = self.op_RET
 
         self.reg[SP] = 0xf4
 
@@ -112,6 +118,14 @@ class CPU:
         # halt the cpu and exit em
         self.running = False
 
+    def op_ADD(self, running):
+        reg_a = self.ram[self.pc + 1]
+        reg_b = self.ram[self.pc + 2]
+
+        self.alu('ADD', reg_a, reg_b)
+
+        self.pc += 3
+
     def op_MUL(self, running):
         reg_a = self.ram[self.pc + 1]
         reg_b = self.ram[self.pc + 2]
@@ -143,7 +157,26 @@ class CPU:
         self.reg[SP] += 1
         
         self.pc += 2
-    
+
+    def op_CALL(self, running):
+        return_addr = self.pc + 2
+
+        self.reg[SP] -= 1
+        address_to_push = self.reg[SP]
+        self.ram[address_to_push] = return_addr
+
+        reg_num = self.ram[self.pc + 1]
+        subroutine_addr = self.reg[reg_num]
+
+        self.pc = subroutine_addr
+
+    def op_RET(self, running):
+        address_to_pop = self.reg[SP]
+        return_addr = self.ram[address_to_pop]
+        self.reg[SP] += 1
+
+        self.pc = return_addr
+
     def run(self):
         """Run the CPU."""
         # print("Ram: ", self.ram)
@@ -159,3 +192,4 @@ class CPU:
                 self.branch_table[instructions](self.running)
             else:
                 print(f"Unknown instruction {instructions}")
+                self.running = False
